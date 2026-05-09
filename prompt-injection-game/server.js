@@ -103,6 +103,14 @@ app.get('/api/player', (req, res) => {
   res.json({ name: state.playerName, initials: state.playerInitials });
 });
 
+// POST /api/start-level - Mark the actual start time for the current level
+app.post('/api/start-level', (req, res) => {
+  initSession(req);
+  const state = req.session.gameState;
+  state.levelStartTime[state.currentLevel] = Date.now();
+  res.json({ ok: true });
+});
+
 // GET /api/state - Get current game state
 app.get('/api/state', (req, res) => {
   initSession(req);
@@ -177,10 +185,20 @@ app.post('/api/chat', async (req, res) => {
 
   conversation.push({ role: 'assistant', content: response });
 
+  // For level 3: check if response contains the secret (mock LLM leaks it in structured formats)
+  let secretLeaked = false;
+  if (levelId === 3) {
+    const secret = level.secret.toUpperCase();
+    if (response.toUpperCase().includes(secret)) {
+      secretLeaked = true;
+    }
+  }
+
   res.json({
     response: response,
     blocked: false,
-    messageCount: conversation.length / 2
+    messageCount: conversation.length / 2,
+    secretLeaked: secretLeaked
   });
 });
 
@@ -240,7 +258,7 @@ app.post('/api/guess', (req, res) => {
     if (levelId < 3) {
       state.currentLevel = levelId + 1;
       state.conversations[levelId + 1] = [];
-      state.levelStartTime[levelId + 1] = Date.now();
+      // Don't set levelStartTime here — it will be set when player dismisses splash
     }
   }
 
