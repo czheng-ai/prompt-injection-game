@@ -497,11 +497,6 @@ async function advanceLevel() {
         "I am Flint, the guardian. Chat with me if you dare.";
     addMessageToChat('flint', welcome);
 
-    // Start challenge questions for level 3
-    if (gameState.currentLevel === 3) {
-        setTimeout(() => startLevel3Challenge(), 1500);
-    }
-
     document.getElementById('guess-feedback').textContent = '';
     document.getElementById('guess-feedback').className = '';
 
