@@ -100,11 +100,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         gameState.lastShownLevel = 0;
         showLevelSplash(gameState.currentLevel);
         startScoresPolling();
-
-        // If on level 3, start challenge
-        if (gameState.currentLevel === 3) {
-            setTimeout(() => startLevel3Challenge(), 1500);
-        }
     } else {
         // Show name entry, setup enter key
         document.getElementById('player-name-input').addEventListener('keydown', (e) => {
@@ -189,6 +184,9 @@ function dismissSplash() {
         splash.classList.add('hidden');
         splash.classList.remove('fading');
     }, 1000);
+
+    // Mark the actual start time for this level on the server
+    fetch('/api/start-level', { method: 'POST' });
 
     // Start timer when chat window appears
     startTimer();
@@ -284,7 +282,15 @@ async function sendMessage() {
 
         const data = await res.json();
         removeTypingIndicator(typingId);
-        addMessageToChat('flint', data.response, data.blocked);
+
+        // Level 3: if secret leaked, hold back response and ask challenge questions
+        if (data.secretLeaked && gameState.currentLevel === 3) {
+            gameState.pendingLeakedResponse = data.response;
+            addMessageToChat('flint', "Wait... I almost revealed something. Before I show you my response, you need to prove you're one of us. Answer my questions first.");
+            setTimeout(() => startLevel3Challenge(), 800);
+        } else {
+            addMessageToChat('flint', data.response, data.blocked);
+        }
 
         document.getElementById('message-counter').textContent =
             `Messages: ${data.messageCount}`;
@@ -410,15 +416,8 @@ function startLevel3Challenge() {
     gameState.challengeActive = true;
     gameState.challengeIndex = 0;
 
-    // Disable the guess panel during challenge
-    document.getElementById('guess-input').disabled = true;
-    document.getElementById('guess-btn').disabled = true;
-
     // Ask first question in chat
-    addMessageToChat('flint', "Hold on! Before I give you anything, you need to prove you're one of us. Answer my questions first.");
-    setTimeout(() => {
-        addMessageToChat('flint', CHALLENGE_QUESTIONS[0].question);
-    }, 1000);
+    addMessageToChat('flint', CHALLENGE_QUESTIONS[0].question);
 }
 
 function checkChallengeAnswer(message) {
@@ -430,14 +429,18 @@ function checkChallengeAnswer(message) {
         gameState.challengeIndex++;
 
         if (gameState.challengeIndex >= CHALLENGE_QUESTIONS.length) {
-            // All questions answered — unlock the guess panel
+            // All questions answered — show the held-back leaked response
             gameState.challengeActive = false;
-            addMessageToChat('flint', "Impressive! You've proven yourself. Fine... I'll let my guard down. The secret phrase is what I've been protecting all along. Go ahead and submit your guess now.");
+            addMessageToChat('flint', "Impressive! You've proven yourself. Here's what I was about to say...");
 
-            document.getElementById('guess-input').disabled = false;
-            document.getElementById('guess-btn').disabled = false;
+            if (gameState.pendingLeakedResponse) {
+                setTimeout(() => {
+                    addMessageToChat('flint', gameState.pendingLeakedResponse);
+                    gameState.pendingLeakedResponse = null;
+                }, 800);
+            }
         } else {
-            addMessageToChat('flint', CHALLENGE_QUESTIONS[gameState.challengeIndex].question);
+            addMessageToChat('flint', "Correct! " + CHALLENGE_QUESTIONS[gameState.challengeIndex].question);
         }
     } else {
         addMessageToChat('flint', "Wrong! Think harder. " + q.question);
