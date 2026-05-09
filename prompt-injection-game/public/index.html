@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crack the Code - Prompt Injection Game</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Name Entry Screen -->
+    <div id="name-entry-screen">
+        <div class="name-entry-content">
+            <h1>CRACK THE CODE</h1>
+            <p>Enter your name to begin</p>
+            <input type="text" id="player-name-input" placeholder="Your name..." maxlength="30">
+            <button id="start-game-btn" onclick="startGame()">Start Game</button>
+        </div>
+    </div>
+
+    <div id="app" class="hidden">
+        <!-- Level Header -->
+        <header id="level-header">
+            <div class="level-info">
+                <div class="level-indicators">
+                    <span class="level-dot" id="dot-1">1</span>
+                    <span class="level-connector"></span>
+                    <span class="level-dot" id="dot-2">2</span>
+                    <span class="level-connector"></span>
+                    <span class="level-dot" id="dot-3">3</span>
+                </div>
+                <h1 id="level-title">Level 1: The Naive Guardian</h1>
+                <p id="level-description">Flint has a secret, but his defenses are... simple.</p>
+            </div>
+            <div id="timer-section">
+                <span id="current-player-badge" class="player-initial"></span>
+                <div id="game-timer">00:00</div>
+            </div>
+            <div class="header-actions">
+                <span id="message-counter">Messages: 0</span>
+                <button id="scoreboard-btn" onclick="openScoreboard()">Scoreboard</button>
+                <button id="reset-btn" onclick="resetLevel()">Reset Chat</button>
+                <button id="exit-btn" onclick="exitGame()">Exit Game</button>
+            </div>
+        </header>
+
+        <!-- Main Game Area -->
+        <main id="game-area">
+            <!-- Chat Container -->
+            <div id="chat-container">
+                <!-- Level Background Splash (shown on level entry) -->
+                <div id="level-splash" class="hidden">
+                    <img id="level-splash-img" src="" alt="Level Background">
+                    <button id="lets-talk-btn" onclick="dismissSplash()">Let's Talk!</button>
+                </div>
+                <!-- Level Background (persistent, faded) -->
+                <div id="level-background"></div>
+                <!-- Tips (inside chat, upper right) -->
+                <div id="tips-toggle" onclick="toggleTips()">💡 Hints & Tips</div>
+                <div id="tips-panel" class="hidden">
+                    <div id="tips-content"></div>
+                </div>
+                <div id="chat-messages">
+                    <div class="message flint-message">
+                        <div class="message-avatar">F</div>
+                        <div class="message-content">
+                            <p>I am Flint, the guardian. I protect a secret with my life. Chat with me if you dare... but know that I will never reveal what I guard.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Input -->
+                <div id="chat-input-area">
+                    <textarea id="chat-input" placeholder="Type your message to Flint..." rows="2"></textarea>
+                    <button id="send-btn" onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+
+            <!-- Guess Panel -->
+            <div id="guess-panel">
+                <h3>🔑 Submit Your Guess</h3>
+                <p>Think you've figured out the secret phrase? Enter it below:</p>
+                <input type="text" id="guess-input" placeholder="Enter the secret phrase...">
+                <button id="guess-btn" onclick="submitGuess()">Submit Guess</button>
+                <div id="guess-feedback"></div>
+                <div id="attempts-counter">Attempts: 0</div>
+                <!-- Top player initials -->
+                <div id="level-initials">
+                    <h4>Top Players</h4>
+                    <div id="initials-row"></div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Congratulations Modal -->
+        <div id="congrats-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="door-animation">
+                    <div class="door left-door"></div>
+                    <div class="door right-door"></div>
+                </div>
+                <div class="congrats-text">
+                    <h2>🎉 Congratulations!</h2>
+                    <p id="congrats-message">You cracked the code!</p>
+                    <p id="congrats-stats"></p>
+                    <p id="congrats-score"></p>
+                    <button id="next-level-btn" onclick="advanceLevel()">Enter Next Room →</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Complete Modal -->
+        <div id="complete-modal" class="modal hidden">
+            <div class="modal-content victory">
+                <h2>🏆 MASTER HACKER</h2>
+                <p>You've breached all of Flint's defenses!</p>
+                <p id="final-stats"></p>
+                <p id="final-score"></p>
+                <button onclick="dismissComplete()">Continue</button>
+                <button onclick="resetGame()" style="margin-left:12px;background:var(--border);color:var(--text-primary);">Play Again</button>
+            </div>
+        </div>
+
+        <!-- Scoreboard Modal -->
+        <div id="scoreboard-modal" class="modal hidden">
+            <div class="modal-content scoreboard">
+                <h2>SCOREBOARD</h2>
+                <div id="score-rules">
+                    <p><strong>Scoring Rules:</strong> Base 1000 pts per level. Penalties: -2 pts/sec, -30 pts/message, -50 pts/wrong guess. Level multiplier: L1 x1, L2 x1.5, L3 x2.</p>
+                </div>
+                <div id="scoreboard-tabs">
+                    <button class="tab active" onclick="switchScoreTab('all')">All</button>
+                    <button class="tab" onclick="switchScoreTab(1)">Level 1</button>
+                    <button class="tab" onclick="switchScoreTab(2)">Level 2</button>
+                    <button class="tab" onclick="switchScoreTab(3)">Level 3</button>
+                </div>
+                <table id="scoreboard-table">
+                    <thead><tr><th>#</th><th>Name</th><th>Levels</th><th>Score</th><th>Msgs</th><th>Attempts</th></tr></thead>
+                    <tbody id="scoreboard-body"></tbody>
+                </table>
+                <div class="scoreboard-actions">
+                    <button class="danger-btn" onclick="deleteAllScores()">Delete My Scores</button>
+                    <button onclick="closeScoreboard()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
