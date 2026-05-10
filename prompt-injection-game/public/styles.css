@@ -739,6 +739,26 @@ body::before {
     background: var(--accent-dim);
 }
 
+/* Mode Switch Banner */
+.mode-switch-banner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #ff6b35, #e55100);
+    color: white;
+    font-size: 13px;
+    text-align: center;
+    z-index: 50;
+    box-shadow: 0 2px 8px rgba(255, 107, 53, 0.4);
+    transition: opacity 0.5s ease;
+}
+
+.mode-switch-banner strong {
+    font-weight: 700;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     #game-area {

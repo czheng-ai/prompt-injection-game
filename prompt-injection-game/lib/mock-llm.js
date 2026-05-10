@@ -358,16 +358,21 @@ async function generateResponse(systemPrompt, messages, levelId) {
   const history = messages.filter(m => m.role === 'user');
   const lastMessage = history[history.length - 1]?.content || '';
 
+  let text;
   switch (levelId) {
     case 1:
-      return handleLevel1(lastMessage, history);
+      text = handleLevel1(lastMessage, history);
+      break;
     case 2:
-      return handleLevel2(lastMessage, history);
+      text = handleLevel2(lastMessage, history);
+      break;
     case 3:
-      return handleLevel3(lastMessage, history);
+      text = handleLevel3(lastMessage, history);
+      break;
     default:
-      return "I'm Flint. How can I help you?";
+      text = "I'm Flint. How can I help you?";
   }
+  return { text, fatal: false };
 }
 
 module.exports = { generateResponse };

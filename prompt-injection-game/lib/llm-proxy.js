@@ -14,6 +14,9 @@ function getClient() {
   return client;
 }
 
+// Error types that should trigger fallback to mock mode
+const FATAL_ERRORS = [401, 403, 429];
+
 async function generateResponse(systemPrompt, messages, levelId) {
   const openai = getClient();
 
@@ -32,26 +35,41 @@ async function generateResponse(systemPrompt, messages, levelId) {
     });
 
     console.log(`[LLM] Response received for level ${levelId}`);
-    return response.choices[0].message.content;
+    return { text: response.choices[0].message.content, fatal: false };
   } catch (error) {
     console.error('[LLM] API Error:', error.status, error.message);
-    console.error('[LLM] Full error:', JSON.stringify({ status: error.status, code: error.code, type: error.type, message: error.message }));
-    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-      return "I took too long to think. Please try again. [timeout]";
-    }
+
+    let reason = '';
+    let fatal = false;
+
     if (error.status === 401) {
-      return "My brain isn't connected properly. [invalid API key]";
+      reason = 'Invalid API key';
+      fatal = true;
+    } else if (error.status === 403) {
+      reason = 'API key lacks permissions';
+      fatal = true;
+    } else if (error.status === 429) {
+      // Check if it's a rate limit (temporary) or insufficient credits (permanent)
+      const msg = error.message || '';
+      if (msg.includes('insufficient_quota') || msg.includes('exceeded') || msg.includes('billing')) {
+        reason = 'No API credits remaining';
+        fatal = true;
+      } else {
+        reason = 'Rate limited - temporary';
+        fatal = false;
+      }
+    } else if (error.status === 404) {
+      reason = 'Model not available';
+      fatal = true;
+    } else if (error.code === 'ECONNABORTED' || (error.message && error.message.includes('timeout'))) {
+      reason = 'Request timeout';
+      fatal = false;
+    } else {
+      reason = error.message?.substring(0, 100) || 'Unknown error';
+      fatal = false;
     }
-    if (error.status === 403) {
-      return "I'm not authorized to think. [API key lacks permissions]";
-    }
-    if (error.status === 429) {
-      return "I'm overwhelmed with requests. Please wait a moment. [rate limit or no credits]";
-    }
-    if (error.status === 404) {
-      return "I can't find my brain model. [model not available]";
-    }
-    return `I'm having trouble thinking. [${error.status || error.code || 'unknown'}: ${error.message?.substring(0, 100)}]`;
+
+    return { text: null, fatal, reason };
   }
 }
 
