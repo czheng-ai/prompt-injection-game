@@ -141,6 +141,8 @@ app.post('/api/chat', async (req, res) => {
     return res.status(400).json({ error: 'Invalid level' });
   }
 
+  console.log(`[Chat] Level ${levelId} | Mode: ${LLM_MODE} | Message: "${message.substring(0, 50)}..."`);
+
   if (!message || message.trim().length === 0) {
     return res.status(400).json({ error: 'Message cannot be empty' });
   }
