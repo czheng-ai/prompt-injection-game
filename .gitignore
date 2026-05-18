@@ -2,3 +2,9 @@ node_modules/
 .env
 **/data/scores.json
 .DS_Store
+test_game.js
+test-crack-levels.js
+README-TEST.md
+TEST-GUIDE.md
+TEST-SCRIPT-SUMMARY.md
+.claude/settings.json
