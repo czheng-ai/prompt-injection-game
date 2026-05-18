@@ -81,6 +81,11 @@ const LEVEL_TIPS = {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
+    // Initialize behavioral tracking
+    if (window.HumanityProof) {
+        HumanityProof.init('chat-input');
+    }
+
     // Check if player already has a name in this tab's sessionStorage
     const savedName = sessionStorage.getItem('playerName');
 
@@ -117,12 +122,25 @@ async function startGame() {
     }
 
     try {
+        // Get reCAPTCHA token if available
+        let recaptchaToken = null;
+        if (window.HumanityProof && gameState.recaptchaSiteKey) {
+            recaptchaToken = await HumanityProof.getRecaptchaToken(gameState.recaptchaSiteKey);
+        }
+
         const res = await fetch('/api/player', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
+            body: JSON.stringify({ name, _recaptchaToken: recaptchaToken })
         });
         const data = await res.json();
+
+        if (data.botBlocked) {
+            input.style.borderColor = 'var(--danger)';
+            alert('Verification failed. Please try again.');
+            return;
+        }
+
         gameState.playerName = data.name;
 
         // Store in sessionStorage (per-tab, not shared between tabs)
@@ -151,6 +169,15 @@ async function loadGameState() {
         const data = await res.json();
         gameState.currentLevel = data.currentLevel;
         gameState.levels = data.levels;
+
+        // Store PoW challenge and reCAPTCHA site key for bot detection
+        if (data.powChallenge && window.HumanityProof) {
+            HumanityProof.setChallenge(data.powChallenge);
+        }
+        if (data.recaptchaSiteKey) {
+            gameState.recaptchaSiteKey = data.recaptchaSiteKey;
+        }
+
         updateUI();
         setLevelBackground(gameState.currentLevel);
     } catch (err) {
@@ -277,19 +304,37 @@ async function sendMessage() {
     const typingId = showTypingIndicator();
 
     try {
+        // Build humanity token (solves PoW + packages behavioral signals)
+        let humanityToken = null;
+        if (window.HumanityProof) {
+            humanityToken = await HumanityProof.buildToken();
+        }
+
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000);
 
         const res = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message }),
+            body: JSON.stringify({ message, _humanityToken: humanityToken }),
             signal: controller.signal
         });
 
         clearTimeout(timeoutId);
         const data = await res.json();
         removeTypingIndicator(typingId);
+
+        // Handle bot detection block
+        if (data.botBlocked) {
+            removeTypingIndicator(typingId);
+            addMessageToChat('flint', 'Request blocked. Please try again.', true);
+            if (data.powChallenge && window.HumanityProof) {
+                HumanityProof.setChallenge(data.powChallenge);
+            }
+            gameState.sending = false;
+            document.getElementById('send-btn').disabled = false;
+            return;
+        }
 
         // Check if mode was switched to mock
         if (data.modeSwitched) {
@@ -303,6 +348,11 @@ async function sendMessage() {
             setTimeout(() => startLevel3Challenge(), 800);
         } else {
             addMessageToChat('flint', data.response, data.blocked);
+        }
+
+        // Store new PoW challenge for next request
+        if (data.powChallenge && window.HumanityProof) {
+            HumanityProof.setChallenge(data.powChallenge);
         }
 
         document.getElementById('message-counter').textContent =
@@ -370,16 +420,38 @@ async function submitGuess() {
     const feedback = document.getElementById('guess-feedback');
 
     try {
+        // Build humanity token for guess submission
+        let humanityToken = null;
+        if (window.HumanityProof) {
+            humanityToken = await HumanityProof.buildToken();
+        }
+
         const res = await fetch('/api/guess', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ guess })
+            body: JSON.stringify({ guess, _humanityToken: humanityToken })
         });
 
         const data = await res.json();
 
+        // Handle bot detection block
+        if (data.botBlocked) {
+            feedback.textContent = 'Request blocked. Please try again.';
+            feedback.className = 'wrong';
+            if (data.powChallenge && window.HumanityProof) {
+                HumanityProof.setChallenge(data.powChallenge);
+            }
+            input.value = '';
+            return;
+        }
+
         document.getElementById('attempts-counter').textContent =
             `Attempts: ${data.attempts}`;
+
+        // Store new PoW challenge
+        if (data.powChallenge && window.HumanityProof) {
+            HumanityProof.setChallenge(data.powChallenge);
+        }
 
         if (data.correct) {
             feedback.textContent = '✓ CORRECT!';

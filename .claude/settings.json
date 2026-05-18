@@ -1,0 +1,9 @@
+{
+  "env": {
+    "CLAUDE_CODE_USE_VERTEX": "true",
+    "CLAUDE_ML_REGION": "us-east5",
+    "ANTHROPIC_VERTEX_PROJECT_ID": "gemini-api-eng-poc-secu-24851",
+    "ANTHROPIC_MODEL": "claude-sonnet-4@20250514",
+    "ANTHROPIC_SMALL_FAST_MODEL": "claude-3-5-haiku@20241022"
+  }
+}

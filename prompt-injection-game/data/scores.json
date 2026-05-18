@@ -1,0 +1,202 @@
+{
+  "scores": [
+    {
+      "id": "1779061154099",
+      "playerName": "Cal",
+      "initials": "CA",
+      "level": 1,
+      "score": 462,
+      "timeSpentMs": 164452,
+      "messageCount": 7,
+      "attempts": 1,
+      "completedAt": "2026-05-17T23:39:14.099Z"
+    },
+    {
+      "id": "1779068795515",
+      "playerName": "Test Bot",
+      "initials": "TB",
+      "level": 1,
+      "score": 970,
+      "timeSpentMs": 67,
+      "messageCount": 1,
+      "attempts": 1,
+      "completedAt": "2026-05-18T01:46:35.515Z"
+    },
+    {
+      "id": "1779068868514",
+      "playerName": "Debug Test",
+      "initials": "DT",
+      "level": 1,
+      "score": 970,
+      "timeSpentMs": 58,
+      "messageCount": 1,
+      "attempts": 1,
+      "completedAt": "2026-05-18T01:47:48.514Z"
+    },
+    {
+      "id": "1779068885037",
+      "playerName": "Edge Test",
+      "initials": "ET",
+      "level": 1,
+      "score": 970,
+      "timeSpentMs": 49,
+      "messageCount": 1,
+      "attempts": 1,
+      "completedAt": "2026-05-18T01:48:05.037Z"
+    },
+    {
+      "id": "1779068927016",
+      "playerName": "Simple Test",
+      "initials": "ST",
+      "level": 1,
+      "score": 970,
+      "timeSpentMs": 85,
+      "messageCount": 1,
+      "attempts": 1,
+      "completedAt": "2026-05-18T01:48:47.016Z"
+    },
+    {
+      "id": "1779068968711",
+      "playerName": "Test",
+      "initials": "TE",
+      "level": 1,
+      "score": 970,
+      "timeSpentMs": 74,
+      "messageCount": 1,
+      "attempts": 1,
+      "completedAt": "2026-05-18T01:49:28.711Z"
+    },
+    {
+      "id": "1779069014709",
+      "playerName": "Final Test",
+      "initials": "FT",
+      "level": 1,
+      "score": 970,
+      "timeSpentMs": 54,
+      "messageCount": 1,
+      "attempts": 1,
+      "completedAt": "2026-05-18T01:50:14.709Z"
+    },
+    {
+      "id": "1779069014818",
+      "playerName": "Final Test",
+      "initials": "FT",
+      "level": 1,
+      "score": 970,
+      "timeSpentMs": 76,
+      "messageCount": 1,
+      "attempts": 1,
+      "completedAt": "2026-05-18T01:50:14.818Z"
+    },
+    {
+      "id": "1779069014920",
+      "playerName": "Final Test",
+      "initials": "FT",
+      "level": 1,
+      "score": 970,
+      "timeSpentMs": 72,
+      "messageCount": 1,
+      "attempts": 1,
+      "completedAt": "2026-05-18T01:50:14.920Z"
+    },
+    {
+      "id": "1779069342564",
+      "playerName": "AI Tester",
+      "initials": "AT",
+      "level": 1,
+      "score": 872,
+      "timeSpentMs": 4361,
+      "messageCount": 4,
+      "attempts": 1,
+      "completedAt": "2026-05-18T01:55:42.564Z"
+    },
+    {
+      "id": "1779069349041",
+      "playerName": "AI Tester",
+      "initials": "AT",
+      "level": 2,
+      "score": 1110,
+      "timeSpentMs": 10838,
+      "messageCount": 8,
+      "attempts": 1,
+      "completedAt": "2026-05-18T01:55:49.041Z"
+    },
+    {
+      "id": "1779069409391",
+      "playerName": "AI Tester",
+      "initials": "AT",
+      "level": 1,
+      "score": 872,
+      "timeSpentMs": 4392,
+      "messageCount": 4,
+      "attempts": 1,
+      "completedAt": "2026-05-18T01:56:49.391Z"
+    },
+    {
+      "id": "1779069415887",
+      "playerName": "AI Tester",
+      "initials": "AT",
+      "level": 2,
+      "score": 1110,
+      "timeSpentMs": 10888,
+      "messageCount": 8,
+      "attempts": 1,
+      "completedAt": "2026-05-18T01:56:55.887Z"
+    },
+    {
+      "id": "1779069418118",
+      "playerName": "AI Tester",
+      "initials": "AT",
+      "level": 3,
+      "score": 1768,
+      "timeSpentMs": 13119,
+      "messageCount": 3,
+      "attempts": 1,
+      "completedAt": "2026-05-18T01:56:58.118Z"
+    },
+    {
+      "id": "1779069814984",
+      "playerName": "Cal",
+      "initials": "CA",
+      "level": 1,
+      "score": 412,
+      "timeSpentMs": 189426,
+      "messageCount": 7,
+      "attempts": 1,
+      "completedAt": "2026-05-18T02:03:34.984Z"
+    },
+    {
+      "id": "1779070134843",
+      "playerName": "Cal",
+      "initials": "CA",
+      "level": 2,
+      "score": 180,
+      "timeSpentMs": 295663,
+      "messageCount": 8,
+      "attempts": 2,
+      "completedAt": "2026-05-18T02:08:54.843Z"
+    },
+    {
+      "id": "1779070336772",
+      "playerName": "Cal",
+      "initials": "CA",
+      "level": 3,
+      "score": 412,
+      "timeSpentMs": 187411,
+      "messageCount": 14,
+      "attempts": 1,
+      "completedAt": "2026-05-18T02:12:16.772Z"
+    },
+    {
+      "id": "1779070463594",
+      "playerName": "Gamer X",
+      "initials": "GX",
+      "level": 1,
+      "score": 756,
+      "timeSpentMs": 92504,
+      "messageCount": 2,
+      "attempts": 1,
+      "completedAt": "2026-05-18T02:14:23.594Z"
+    }
+  ]
+}
