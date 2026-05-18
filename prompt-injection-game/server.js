@@ -2,35 +2,15 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
-const fs = require('fs');
 const levels = require('./config/levels');
 const { generateAllSecrets, generateBannedWords } = require('./config/secret-generator');
 const { runDefenses } = require('./lib/filters');
 const botDetection = require('./lib/bot-detection');
+const db = require('./lib/db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const BOT_DETECTION_ENABLED = process.env.BOT_DETECTION_ENABLED !== 'false';
-
-// Scores persistence
-const SCORES_FILE = path.join(__dirname, 'data', 'scores.json');
-
-function loadScores() {
-  try {
-    if (fs.existsSync(SCORES_FILE)) {
-      return JSON.parse(fs.readFileSync(SCORES_FILE, 'utf8'));
-    }
-  } catch (err) {
-    console.error('Error loading scores:', err);
-  }
-  return { scores: [] };
-}
-
-function saveScores(data) {
-  const dir = path.dirname(SCORES_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(SCORES_FILE, JSON.stringify(data, null, 2));
-}
 
 function calculateScore(levelId, timeSpentMs, messageCount, attempts) {
   const BASE_SCORE = 1000;
@@ -299,7 +279,7 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // POST /api/guess - Submit a guess for the secret
-app.post('/api/guess', (req, res) => {
+app.post('/api/guess', async (req, res) => {
   initSession(req);
   const { guess } = req.body;
   const state = req.session.gameState;
@@ -361,15 +341,8 @@ app.post('/api/guess', (req, res) => {
         completedAt: new Date().toISOString()
       };
 
-      const scoresData = loadScores();
-      scoresData.scores.push(scoreEntry);
-      saveScores(scoresData);
-
-      // Calculate rank for this level
-      const levelScores = scoresData.scores
-        .filter(s => s.level === levelId)
-        .sort((a, b) => b.score - a.score);
-      rank = levelScores.findIndex(s => s.id === scoreEntry.id) + 1;
+      await db.saveScore(scoreEntry);
+      rank = await db.getRank(levelId, scoreEntry.id);
     }
 
     if (levelId < 3) {
@@ -396,42 +369,29 @@ app.post('/api/guess', (req, res) => {
 });
 
 // GET /api/scores - Get full scoreboard
-app.get('/api/scores', (req, res) => {
-  const scoresData = loadScores();
-  const grouped = { 1: [], 2: [], 3: [] };
-  scoresData.scores.forEach(s => {
-    if (grouped[s.level]) grouped[s.level].push(s);
-  });
-  for (const lvl of [1, 2, 3]) {
-    grouped[lvl].sort((a, b) => b.score - a.score);
-  }
+app.get('/api/scores', async (req, res) => {
+  const grouped = await db.loadAllScores();
   res.json(grouped);
 });
 
 // GET /api/scores/:level - Get top scores for a level
-app.get('/api/scores/:level', (req, res) => {
+app.get('/api/scores/:level', async (req, res) => {
   const level = parseInt(req.params.level);
   if (![1, 2, 3].includes(level)) {
     return res.status(400).json({ error: 'Invalid level' });
   }
-  const scoresData = loadScores();
-  const levelScores = scoresData.scores
-    .filter(s => s.level === level)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 10);
-  res.json({ scores: levelScores });
+  const scores = await db.getTopScoresByLevel(level, 10);
+  res.json({ scores });
 });
 
 // DELETE /api/scores - Delete scores for a specific player
-app.delete('/api/scores', (req, res) => {
+app.delete('/api/scores', async (req, res) => {
   initSession(req);
   const playerName = req.session.gameState.playerName;
   if (!playerName) {
     return res.status(400).json({ error: 'No player name in session' });
   }
-  const scoresData = loadScores();
-  scoresData.scores = scoresData.scores.filter(s => s.playerName !== playerName);
-  saveScores(scoresData);
+  await db.deletePlayerScores(playerName);
   res.json({ success: true });
 });
 
@@ -461,12 +421,17 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`
+db.initDb().then(() => {
+  app.listen(PORT, () => {
+    console.log(`
 ╔══════════════════════════════════════════════╗
 ║   🔐 PROMPT INJECTION GAME - FLINT          ║
 ║   Server running on http://localhost:${PORT}    ║
 ║   Mode: ${LLM_MODE.toUpperCase().padEnd(36)}║
 ╚══════════════════════════════════════════════╝
-  `);
+    `);
+  });
+}).catch(err => {
+  console.error('[DB] Failed to initialize database:', err);
+  process.exit(1);
 });
