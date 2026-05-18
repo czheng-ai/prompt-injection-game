@@ -539,7 +539,7 @@ function showCongrats(nextLevel, attempts, score, rank) {
     document.getElementById('congrats-stats').textContent =
         `Secret found in ${attempts} attempt(s)`;
     document.getElementById('congrats-score').textContent =
-        score !== null ? `Score: ${score} pts | Rank: #${rank}` : '';
+        score !== null ? `Score: ${score} pts${rank ? ` | Rank: #${rank}` : ''}` : '';
     modal.classList.remove('hidden');
 }
 
@@ -549,7 +549,7 @@ function showGameComplete(attempts, score, rank) {
     document.getElementById('final-stats').textContent =
         `Total attempts across all levels: ${totalAttempts}`;
     document.getElementById('final-score').textContent =
-        score !== null ? `Level 3 Score: ${score} pts | Rank: #${rank}` : '';
+        score !== null ? `Level 3 Score: ${score} pts${rank ? ` | Rank: #${rank}` : ''}` : '';
     modal.classList.remove('hidden');
 }
 

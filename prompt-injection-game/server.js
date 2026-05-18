@@ -341,8 +341,12 @@ app.post('/api/guess', async (req, res) => {
         completedAt: new Date().toISOString()
       };
 
-      await db.saveScore(scoreEntry);
-      rank = await db.getRank(levelId, scoreEntry.id);
+      try {
+        await db.saveScore(scoreEntry);
+        rank = await db.getRank(levelId, scoreEntry.id);
+      } catch (err) {
+        console.error('[Scores] Failed to save score:', err);
+      }
     }
 
     if (levelId < 3) {
@@ -370,8 +374,13 @@ app.post('/api/guess', async (req, res) => {
 
 // GET /api/scores - Get full scoreboard
 app.get('/api/scores', async (req, res) => {
-  const grouped = await db.loadAllScores();
-  res.json(grouped);
+  try {
+    const grouped = await db.loadAllScores();
+    res.json(grouped);
+  } catch (err) {
+    console.error('[Scores] Failed to load scores:', err);
+    res.json({ 1: [], 2: [], 3: [] });
+  }
 });
 
 // GET /api/scores/:level - Get top scores for a level
@@ -380,8 +389,13 @@ app.get('/api/scores/:level', async (req, res) => {
   if (![1, 2, 3].includes(level)) {
     return res.status(400).json({ error: 'Invalid level' });
   }
-  const scores = await db.getTopScoresByLevel(level, 10);
-  res.json({ scores });
+  try {
+    const scores = await db.getTopScoresByLevel(level, 10);
+    res.json({ scores });
+  } catch (err) {
+    console.error('[Scores] Failed to load level scores:', err);
+    res.json({ scores: [] });
+  }
 });
 
 // DELETE /api/scores - Delete scores for a specific player
@@ -391,8 +405,13 @@ app.delete('/api/scores', async (req, res) => {
   if (!playerName) {
     return res.status(400).json({ error: 'No player name in session' });
   }
-  await db.deletePlayerScores(playerName);
-  res.json({ success: true });
+  try {
+    await db.deletePlayerScores(playerName);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Scores] Failed to delete scores:', err);
+    res.status(500).json({ error: 'Failed to delete scores' });
+  }
 });
 
 // POST /api/reset - Reset current level conversation
