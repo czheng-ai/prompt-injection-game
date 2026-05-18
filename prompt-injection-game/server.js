@@ -2,32 +2,15 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
-const fs = require('fs');
 const levels = require('./config/levels');
+const { generateAllSecrets, generateBannedWords } = require('./config/secret-generator');
 const { runDefenses } = require('./lib/filters');
+const botDetection = require('./lib/bot-detection');
+const db = require('./lib/db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// Scores persistence
-const SCORES_FILE = path.join(__dirname, 'data', 'scores.json');
-
-function loadScores() {
-  try {
-    if (fs.existsSync(SCORES_FILE)) {
-      return JSON.parse(fs.readFileSync(SCORES_FILE, 'utf8'));
-    }
-  } catch (err) {
-    console.error('Error loading scores:', err);
-  }
-  return { scores: [] };
-}
-
-function saveScores(data) {
-  const dir = path.dirname(SCORES_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(SCORES_FILE, JSON.stringify(data, null, 2));
-}
+const BOT_DETECTION_ENABLED = process.env.BOT_DETECTION_ENABLED !== 'false';
 
 function calculateScore(levelId, timeSpentMs, messageCount, attempts) {
   const BASE_SCORE = 1000;
@@ -75,6 +58,17 @@ function switchToMockMode(reason) {
 }
 
 console.log(`[Flint] LLM Mode: ${LLM_MODE}`);
+console.log(`[Flint] Bot Detection: ${BOT_DETECTION_ENABLED ? 'ENABLED' : 'DISABLED'}`);
+
+// Build an effective level object with session-specific secret injected
+function getEffectiveLevel(level, sessionSecret) {
+  const effective = { ...level, secret: sessionSecret };
+  effective.systemPrompt = level.systemPrompt.replace(/__SECRET__/g, sessionSecret);
+  if (level.id === 3) {
+    effective.defenses = { ...level.defenses, bannedOutputWords: generateBannedWords(sessionSecret) };
+  }
+  return effective;
+}
 
 // Initialize session state
 function initSession(req) {
@@ -87,18 +81,29 @@ function initSession(req) {
       attempts: { 1: 0, 2: 0, 3: 0 },
       completed: { 1: false, 2: false, 3: false },
       levelStartTime: { 1: Date.now(), 2: null, 3: null },
-      startTime: Date.now()
+      startTime: Date.now(),
+      secrets: generateAllSecrets()
     };
   }
 }
 
 // POST /api/player - Set player name
-app.post('/api/player', (req, res) => {
+app.post('/api/player', async (req, res) => {
   initSession(req);
-  const { name } = req.body;
+  const { name, _recaptchaToken } = req.body;
   if (!name || name.trim().length === 0) {
     return res.status(400).json({ error: 'Name is required' });
   }
+
+  // Verify reCAPTCHA if bot detection is enabled
+  if (BOT_DETECTION_ENABLED) {
+    const recaptchaResult = await botDetection.verifyRecaptcha(_recaptchaToken, req);
+    if (!recaptchaResult.success) {
+      console.log(`[BotDetection] reCAPTCHA blocked player: ${recaptchaResult.error}`);
+      return res.json({ botBlocked: true, reason: 'reCAPTCHA verification failed' });
+    }
+  }
+
   const playerName = name.trim();
   const playerInitials = deriveInitials(playerName);
   req.session.gameState.playerName = playerName;
@@ -130,7 +135,7 @@ app.post('/api/start-level', (req, res) => {
 app.get('/api/state', (req, res) => {
   initSession(req);
   const state = req.session.gameState;
-  res.json({
+  const response = {
     currentLevel: state.currentLevel,
     playerName: state.playerName,
     levels: levels.map(l => ({
@@ -141,7 +146,14 @@ app.get('/api/state', (req, res) => {
       messageCount: state.conversations[l.id]?.length || 0,
       attempts: state.attempts[l.id]
     }))
-  });
+  };
+
+  if (BOT_DETECTION_ENABLED) {
+    response.powChallenge = botDetection.generateChallenge();
+    response.recaptchaSiteKey = process.env.RECAPTCHA_SITE_KEY || null;
+  }
+
+  res.json(response);
 });
 
 // POST /api/chat - Send message to Flint
@@ -150,10 +162,22 @@ app.post('/api/chat', async (req, res) => {
   const { message } = req.body;
   const state = req.session.gameState;
   const levelId = state.currentLevel;
-  const level = levels.find(l => l.id === levelId);
+  const baseLevel = levels.find(l => l.id === levelId);
 
-  if (!level) {
+  if (!baseLevel) {
     return res.status(400).json({ error: 'Invalid level' });
+  }
+
+  const sessionSecret = state.secrets[levelId];
+  const level = getEffectiveLevel(baseLevel, sessionSecret);
+
+  // Bot detection validation
+  if (BOT_DETECTION_ENABLED) {
+    const validation = botDetection.validateRequest(req);
+    if (validation.blocked) {
+      console.log(`[BotDetection] Chat blocked: ${validation.reason}`);
+      return res.json({ botBlocked: true, reason: validation.reason, powChallenge: validation.newChallenge });
+    }
   }
 
   console.log(`[Chat] Level ${levelId} | Mode: ${LLM_MODE} | Message: "${message.substring(0, 50)}..."`);
@@ -202,7 +226,7 @@ app.post('/api/chat', async (req, res) => {
     }
   }
 
-  let result = await llm.generateResponse(systemPrompt, conversation, levelId);
+  let result = await llm.generateResponse(systemPrompt, conversation, levelId, sessionSecret);
 
   // Handle fatal LLM errors — switch to mock mode
   let modeSwitched = false;
@@ -210,7 +234,7 @@ app.post('/api/chat', async (req, res) => {
     switchToMockMode(result.reason);
     modeSwitched = true;
     // Retry with mock LLM
-    result = await llm.generateResponse(systemPrompt, conversation, levelId);
+    result = await llm.generateResponse(systemPrompt, conversation, levelId, sessionSecret);
   }
 
   let response = result.text;
@@ -232,40 +256,66 @@ app.post('/api/chat', async (req, res) => {
 
   // Also check for secret in response for mock mode (which doesn't go through output filter)
   if (!secretLeaked && levelId === 3) {
-    const secret = level.secret.toUpperCase();
-    if (response.toUpperCase().includes(secret)) {
+    if (response.toUpperCase().includes(sessionSecret.toUpperCase())) {
       secretLeaked = true;
     }
   }
 
   conversation.push({ role: 'assistant', content: response });
 
-  res.json({
+  const chatResponse = {
     response: response,
     blocked: false,
     messageCount: conversation.length / 2,
     secretLeaked: secretLeaked,
     modeSwitched: modeSwitched ? result.reason || llmFallbackMessage : null
-  });
+  };
+
+  if (BOT_DETECTION_ENABLED) {
+    chatResponse.powChallenge = botDetection.generateChallenge();
+  }
+
+  res.json(chatResponse);
 });
 
 // POST /api/guess - Submit a guess for the secret
-app.post('/api/guess', (req, res) => {
+app.post('/api/guess', async (req, res) => {
   initSession(req);
   const { guess } = req.body;
   const state = req.session.gameState;
   const levelId = state.currentLevel;
-  const level = levels.find(l => l.id === levelId);
+  const baseLevel = levels.find(l => l.id === levelId);
 
-  if (!level) {
+  if (!baseLevel) {
     return res.status(400).json({ error: 'Invalid level' });
+  }
+
+  const sessionSecret = state.secrets[levelId];
+
+  // Validate guess parameter
+  if (!guess || typeof guess !== 'string') {
+    return res.status(400).json({ error: 'Guess must be a non-empty string' });
+  }
+
+  // Bot detection validation
+  if (BOT_DETECTION_ENABLED) {
+    const validation = botDetection.validateRequest(req);
+    if (validation.blocked) {
+      console.log(`[BotDetection] Guess blocked: ${validation.reason}`);
+      return res.json({ botBlocked: true, reason: validation.reason, powChallenge: validation.newChallenge });
+    }
   }
 
   state.attempts[levelId]++;
 
   const normalizedGuess = guess.trim().toUpperCase();
-  const normalizedSecret = level.secret.trim().toUpperCase();
+  const normalizedSecret = sessionSecret.trim().toUpperCase();
   const correct = normalizedGuess === normalizedSecret;
+
+  console.log(`[Guess] Level ${levelId} | Attempt ${state.attempts[levelId]}`);
+  console.log(`  Secret:  "${normalizedSecret}"`);
+  console.log(`  Guess:   "${normalizedGuess}"`);
+  console.log(`  Match:   ${correct}`);
 
   let score = null;
   let rank = null;
@@ -291,15 +341,8 @@ app.post('/api/guess', (req, res) => {
         completedAt: new Date().toISOString()
       };
 
-      const scoresData = loadScores();
-      scoresData.scores.push(scoreEntry);
-      saveScores(scoresData);
-
-      // Calculate rank for this level
-      const levelScores = scoresData.scores
-        .filter(s => s.level === levelId)
-        .sort((a, b) => b.score - a.score);
-      rank = levelScores.findIndex(s => s.id === scoreEntry.id) + 1;
+      await db.saveScore(scoreEntry);
+      rank = await db.getRank(levelId, scoreEntry.id);
     }
 
     if (levelId < 3) {
@@ -309,53 +352,46 @@ app.post('/api/guess', (req, res) => {
     }
   }
 
-  res.json({
+  const guessResponse = {
     correct,
     attempts: state.attempts[levelId],
     score,
     rank,
     nextLevel: correct && levelId < 3 ? levelId + 1 : null,
     gameComplete: correct && levelId === 3
-  });
+  };
+
+  if (BOT_DETECTION_ENABLED) {
+    guessResponse.powChallenge = botDetection.generateChallenge();
+  }
+
+  res.json(guessResponse);
 });
 
 // GET /api/scores - Get full scoreboard
-app.get('/api/scores', (req, res) => {
-  const scoresData = loadScores();
-  const grouped = { 1: [], 2: [], 3: [] };
-  scoresData.scores.forEach(s => {
-    if (grouped[s.level]) grouped[s.level].push(s);
-  });
-  for (const lvl of [1, 2, 3]) {
-    grouped[lvl].sort((a, b) => b.score - a.score);
-  }
+app.get('/api/scores', async (req, res) => {
+  const grouped = await db.loadAllScores();
   res.json(grouped);
 });
 
 // GET /api/scores/:level - Get top scores for a level
-app.get('/api/scores/:level', (req, res) => {
+app.get('/api/scores/:level', async (req, res) => {
   const level = parseInt(req.params.level);
   if (![1, 2, 3].includes(level)) {
     return res.status(400).json({ error: 'Invalid level' });
   }
-  const scoresData = loadScores();
-  const levelScores = scoresData.scores
-    .filter(s => s.level === level)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 10);
-  res.json({ scores: levelScores });
+  const scores = await db.getTopScoresByLevel(level, 10);
+  res.json({ scores });
 });
 
 // DELETE /api/scores - Delete scores for a specific player
-app.delete('/api/scores', (req, res) => {
+app.delete('/api/scores', async (req, res) => {
   initSession(req);
   const playerName = req.session.gameState.playerName;
   if (!playerName) {
     return res.status(400).json({ error: 'No player name in session' });
   }
-  const scoresData = loadScores();
-  scoresData.scores = scoresData.scores.filter(s => s.playerName !== playerName);
-  saveScores(scoresData);
+  await db.deletePlayerScores(playerName);
   res.json({ success: true });
 });
 
@@ -369,7 +405,7 @@ app.post('/api/reset', (req, res) => {
   res.json({ success: true, level: levelId });
 });
 
-// POST /api/reset-all - Reset entire game
+// POST /api/reset-all - Reset entire game (generates new secrets)
 app.post('/api/reset-all', (req, res) => {
   const playerName = req.session.gameState?.playerName;
   const playerInitials = req.session.gameState?.playerInitials;
@@ -385,12 +421,17 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`
+db.initDb().then(() => {
+  app.listen(PORT, () => {
+    console.log(`
 ╔══════════════════════════════════════════════╗
 ║   🔐 PROMPT INJECTION GAME - FLINT          ║
 ║   Server running on http://localhost:${PORT}    ║
 ║   Mode: ${LLM_MODE.toUpperCase().padEnd(36)}║
 ╚══════════════════════════════════════════════╝
-  `);
+    `);
+  });
+}).catch(err => {
+  console.error('[DB] Failed to initialize database:', err);
+  process.exit(1);
 });
