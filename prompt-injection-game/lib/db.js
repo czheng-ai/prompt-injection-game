@@ -56,6 +56,7 @@ async function initDb() {
 }
 
 async function saveScore(entry) {
+  console.log(`[DB] Saving score: player=${entry.playerName} level=${entry.level} score=${entry.score} mode=${usePostgres ? 'pg' : 'json'}`);
   if (!usePostgres) {
     const data = loadScoresFile();
     data.scores.push(entry);
