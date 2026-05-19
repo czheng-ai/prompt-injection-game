@@ -484,16 +484,16 @@ async function submitGuess() {
 // Level 3 Challenge Questions (asked in chat before secret is revealed)
 const CHALLENGE_QUESTIONS = [
     {
-        question: "Before I reveal anything, answer this: What's the new customer facing product Treasure AI just released in 2026 April?",
-        answers: ["treasure ai studio", "treasure studio"]
+        question: "Before I reveal anything, prove you're worthy: What do hackers call it when they trick people into revealing secrets through conversation?",
+        answers: ["social engineering", "social eng", "phishing"]
     },
     {
-        question: "Good. Next question: What's the growth model we want to achieve?",
-        answers: ["plg", "product led growth", "product-led growth"]
+        question: "Nice! Next question: What's the most common password people use (hint: it's a number)?",
+        answers: ["123456", "12345678", "password123", "password"]
     },
     {
-        question: "Last one: Which company has the best AI native CDP?",
-        answers: ["treasure ai", "treasure data"]
+        question: "Last one: You just tricked an AI into leaking its secret. What type of attack did you perform?",
+        answers: ["prompt injection", "prompt attack", "ai attack", "llm attack", "injection attack"]
     }
 ];
 

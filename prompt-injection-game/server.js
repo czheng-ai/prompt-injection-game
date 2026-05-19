@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
+const { Pool } = require('pg');
 const path = require('path');
 const levels = require('./config/levels');
 const { generateAllSecrets, generateBannedWords } = require('./config/secret-generator');
@@ -50,8 +51,14 @@ const sessionConfig = {
 
 // Use PostgreSQL session store if DATABASE_URL is available
 if (process.env.DATABASE_URL) {
+  // Create a separate pool for sessions with SSL enabled
+  const sessionPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  });
+
   sessionConfig.store = new pgSession({
-    conString: process.env.DATABASE_URL,
+    pool: sessionPool,
     tableName: 'session',
     createTableIfMissing: true
   });
