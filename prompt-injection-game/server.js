@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
+const { Pool } = require('pg');
 const path = require('path');
 const levels = require('./config/levels');
 const { generateAllSecrets, generateBannedWords } = require('./config/secret-generator');
@@ -34,12 +36,38 @@ function deriveInitials(name) {
 app.use(express.json());
 app.use('/images', express.static(__dirname));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(session({
+
+// Session configuration - use PostgreSQL in production, MemoryStore in development
+const sessionConfig = {
   secret: process.env.SESSION_SECRET || 'flint-guardian-secret-key-change-me',
   resave: false,
-  saveUninitialized: true,
-  cookie: { maxAge: 3600000 }
-}));
+  saveUninitialized: false,
+  cookie: {
+    maxAge: 3600000, // 1 hour
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true
+  }
+};
+
+// Use PostgreSQL session store if DATABASE_URL is available
+if (process.env.DATABASE_URL) {
+  // Create a separate pool for sessions with SSL enabled
+  const sessionPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  });
+
+  sessionConfig.store = new pgSession({
+    pool: sessionPool,
+    tableName: 'session',
+    createTableIfMissing: true
+  });
+  console.log('[Session] Using PostgreSQL session store');
+} else {
+  console.log('[Session] Using MemoryStore (development only)');
+}
+
+app.use(session(sessionConfig));
 
 // Select LLM backend
 let LLM_MODE = process.env.LLM_MODE || 'mock';
